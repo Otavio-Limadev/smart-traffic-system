@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor de Tráfego Real-Time</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; padding: 40px; }
+        h1 { color: #38bdf8; }
+        #status { font-weight: bold; padding: 5px 15px; border-radius: 20px; background: #1e293b; margin-bottom: 20px; }
+        #logs { width: 100%; max-width: 800px; background: #1e293b; border-radius: 12px; padding: 20px; height: 450px; overflow-y: auto; border: 1px solid #334155; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .log-entry { padding: 12px; border-bottom: 1px solid #334155; animation: fadeIn 0.5s ease-in; display: flex; justify-content: space-between; }
+        .state-tag { padding: 4px 10px; border-radius: 6px; text-transform: uppercase; font-size: 0.8rem; font-weight: bold; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <h1>🚦 Painel de Controle em Tempo Real</h1>
+    <div id="status">🔌 Tentando conectar ao Java...</div>
+
+    <div id="logs">
+        <div style="text-align: center; color: #94a3b8; margin-top: 180px;">
+            Aguardando sinal do simulador Python...
+        </div>
+    </div>
+
+    <script>
+        // Conexão com o endpoint WebSocketConfig.java
+        const socket = new SockJS('http://localhost:8080/ws-traffic');
+        const stompClient = Stomp.over(socket);
+
+        // Desativa os logs do próprio stomp no console
+        stompClient.debug = null;
+
+        stompClient.connect({}, function (frame) {
+            const statusEl = document.getElementById('status');
+            statusEl.innerText = "✅ ONLINE: Recebendo transmissões";
+            statusEl.style.color = "#4ade80";
+            
+            // Assina o canal TrafficManagementService.java
+            stompClient.subscribe('/topic/traffic', function (mensagem) {
+                const dados = JSON.parse(mensagem.body);
+                adicionarLog(dados);
+            });
+        }, function (error) {
+            document.getElementById('status').innerText = "❌ ERRO: O Java está desligado?";
+            document.getElementById('status').style.color = "#f87171";
+        });
+
+        function adicionarLog(dados) {
+            const logsDiv = document.getElementById('logs');
+            
+            // Se for o primeiro log limpa a mensagem de aguardando
+            if (logsDiv.innerText.includes("Aguardando")) logsDiv.innerHTML = "";
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            // Define a cor da tag do semáforo
+            let color = "#ef4444"; // Red
+            if (dados.trafficLights[0].state === "GREEN") color = "#22c55e";
+            if (dados.trafficLights[0].state === "YELLOW") color = "#eab308";
+
+            entry.innerHTML = `
+                <span>
+                    <strong>📍 ${dados.name}</strong> | 🚗 ${dados.currentCarCount} carros | ☁️ ${dados.condition}
+                </span>
+                <span class="state-tag" style="background: ${color}33; color: ${color}; border: 1px solid ${color}">
+                    ${dados.trafficLights[0].state}
+                </span>
+            `;
+
+            logsDiv.prepend(entry);
+        }
+    </script>
+</body>
+</html>
